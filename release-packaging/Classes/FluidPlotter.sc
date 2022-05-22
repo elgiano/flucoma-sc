@@ -124,7 +124,7 @@ FluidPlotter : FluidViewer {
 	}
 
 	refresh {
-		{userView.refresh}.defer;
+		defer { userView.refresh };
 	}
 
 	pointSizeScale_ {
@@ -198,15 +198,14 @@ FluidPlotter : FluidViewer {
 		arg bounds, mouseMoveAction;
 		var zoomRect = nil;
 		var zoomDragStart = Point(0,0);
+		var reportMouseActivity;
 
 		bounds = bounds ? Rect(0,0,800,800);
 		if (parent.isNil) {
 			if (standalone) {
 				parent = Window("FluidPlotter", bounds);
 				userView = UserView();
-				defer {
-					parent.view.layout = HLayout(userView).margins_(0).spacing_(0);
-				}
+				parent.view.layout = HLayout(userView).margins_(0).spacing_(0);
 			} {
 				parent = userView = UserView();
 			}
@@ -214,114 +213,110 @@ FluidPlotter : FluidViewer {
 			userView = UserView(parent, bounds)
 		};
 
-		{
-			var reportMouseActivity;
+		userView.drawFunc = {
+			arg viewport;
+			var w = viewport.bounds.width, h = viewport.bounds.height;
+			if(dict_internal.notNil,{
+				dict_internal.keysValuesDo({
+					arg key, pt;
+					var pointSize_, scaledx, scaledy, color;
 
-			userView.drawFunc = {
-				arg viewport;
-				var w = viewport.bounds.width, h = viewport.bounds.height;
-				if(dict_internal.notNil,{
-					dict_internal.keysValuesDo({
-						arg key, pt;
-						var pointSize_, scaledx, scaledy, color;
-
-						pointSize_ = pointSize * pt.size;
-						if (highlightIdentifiersArray.notNil) {
-							if (highlightIdentifiersArray.includes(key)) {
-								pointSize_ = pointSize_ * 2.3;
-							};
+					pointSize_ = pointSize * pt.size;
+					if (highlightIdentifiersArray.notNil) {
+						if (highlightIdentifiersArray.includes(key)) {
+							pointSize_ = pointSize_ * 2.3;
 						};
-						pointSize_ = pointSize_ * pointSizeScale;
+					};
+					pointSize_ = pointSize_ * pointSizeScale;
 
-						scaledx = pt.x.linlin(zoomxmin,zoomxmax,0,w,nil) - (pointSize_/2);
-						scaledy = pt.y.linlin(zoomymax,zoomymin,0,h,nil) - (pointSize_/2);
+					scaledx = pt.x.linlin(zoomxmin,zoomxmax,0,w,nil) - (pointSize_/2);
+					scaledy = pt.y.linlin(zoomymax,zoomymin,0,h,nil) - (pointSize_/2);
 
-						shape.switch(
-							\square, {
-								Pen.addRect(Rect(scaledx,scaledy,pointSize_,pointSize_))
-							},
-							\circle, {
-								Pen.addOval(Rect(scaledx,scaledy,pointSize_,pointSize_))
-							}
-						);
+					shape.switch(
+						\square, {
+							Pen.addRect(Rect(scaledx,scaledy,pointSize_,pointSize_))
+						},
+						\circle, {
+							Pen.addOval(Rect(scaledx,scaledy,pointSize_,pointSize_))
+						}
+					);
 
-						Pen.color_(pt.color);
-						Pen.draw;
-					});
-
-					if(zoomRect.notNil,{
-						Pen.strokeColor_(Color.black);
-						Pen.addRect(zoomRect);
-						Pen.draw(2);
-					});
+					Pen.color_(pt.color);
+					Pen.draw;
 				});
-			};
-
-			reportMouseActivity = {
-				arg view, x, y, modifiers, buttonNumber, clickCount;
-				var realx = x.linlin(pointSize/2,userView.bounds.width-(pointSize/2),zoomxmin,zoomxmax);
-				var realy = y.linlin(pointSize/2,userView.bounds.height-(pointSize/2),zoomymax,zoomymin);
-				mouseMoveAction.(this,realx,realy,modifiers,buttonNumber, clickCount);
-			};
-
-			userView.mouseDownAction = {
-				arg view, x, y, modifiers, buttonNumber, clickCount;
-				case { modifiers.isAlt } {
-					zoomDragStart.x = x;
-					zoomDragStart.y = y;
-					zoomRect = Rect(zoomDragStart.x,zoomDragStart.y,0,0);
-				}
-				{ modifiers.isCtrl } {
-					this.resetZoom;
-				}
-				{
-					reportMouseActivity.(this,x,y,modifiers,buttonNumber,clickCount);
-				};
-			};
-
-			userView.mouseMoveAction = {
-				arg view, x, y, modifiers, buttonNumber, clickCount;
-				if (modifiers.isAlt) {
-					zoomRect = Rect(zoomDragStart.x,zoomDragStart.y,x - zoomDragStart.x,y - zoomDragStart.y);
-					this.refresh;
-				} {
-					reportMouseActivity.(this,x,y,modifiers,buttonNumber,clickCount);
-				};
-			};
-
-			userView.mouseUpAction = {
-				arg view, x, y, modifiers, buttonNumber, clickCount;
 
 				if(zoomRect.notNil,{
-					var xmin_new, xmax_new, ymin_new, ymax_new;
-
-					zoomRect = nil;
-
-					xmin_new = min(x,zoomDragStart.x).linlin(0,userView.bounds.width,zoomxmin,zoomxmax,nil);
-					xmax_new = max(x,zoomDragStart.x).linlin(0,userView.bounds.width,zoomxmin,zoomxmax,nil);
-
-					// it looks like maybe these are wrong, with max on top and min on bottom, but they are
-					// correct. this accounts for the fact that for the pixels, the lower numbers are higher
-					// in the frame and vice versa, but for the plot values the lower numbers are lower in
-					// the window.
-					ymin_new = max(y,zoomDragStart.y).linlin(userView.bounds.height,0,zoomymin,zoomymax,nil);
-					ymax_new = min(y,zoomDragStart.y).linlin(userView.bounds.height,0,zoomymin,zoomymax,nil);
-
-					zoomxmin = xmin_new;
-					zoomxmax = xmax_new;
-					zoomymin = ymin_new;
-					zoomymax = ymax_new;
-
-					this.refresh;
+					Pen.strokeColor_(Color.black);
+					Pen.addRect(zoomRect);
+					Pen.draw(2);
 				});
+			});
+		};
 
+		reportMouseActivity = {
+			arg view, x, y, modifiers, buttonNumber, clickCount;
+			var realx = x.linlin(pointSize/2,userView.bounds.width-(pointSize/2),zoomxmin,zoomxmax);
+			var realy = y.linlin(pointSize/2,userView.bounds.height-(pointSize/2),zoomymax,zoomymin);
+			mouseMoveAction.(this,realx,realy,modifiers,buttonNumber, clickCount);
+		};
+
+		userView.mouseDownAction = {
+			arg view, x, y, modifiers, buttonNumber, clickCount;
+			case { modifiers.isAlt } {
+				zoomDragStart.x = x;
+				zoomDragStart.y = y;
+				zoomRect = Rect(zoomDragStart.x,zoomDragStart.y,0,0);
+			}
+			{ modifiers.isCtrl } {
+				this.resetZoom;
+			}
+			{
 				reportMouseActivity.(this,x,y,modifiers,buttonNumber,clickCount);
 			};
+		};
 
-			this.background_(Color.white);
+		userView.mouseMoveAction = {
+			arg view, x, y, modifiers, buttonNumber, clickCount;
+			if (modifiers.isAlt) {
+				zoomRect = Rect(zoomDragStart.x,zoomDragStart.y,x - zoomDragStart.x,y - zoomDragStart.y);
+				this.refresh;
+			} {
+				reportMouseActivity.(this,x,y,modifiers,buttonNumber,clickCount);
+			};
+		};
 
-			if (standalone) { parent.front };
-		}.defer;
+		userView.mouseUpAction = {
+			arg view, x, y, modifiers, buttonNumber, clickCount;
+
+			if(zoomRect.notNil,{
+				var xmin_new, xmax_new, ymin_new, ymax_new;
+
+				zoomRect = nil;
+
+				xmin_new = min(x,zoomDragStart.x).linlin(0,userView.bounds.width,zoomxmin,zoomxmax,nil);
+				xmax_new = max(x,zoomDragStart.x).linlin(0,userView.bounds.width,zoomxmin,zoomxmax,nil);
+
+				// it looks like maybe these are wrong, with max on top and min on bottom, but they are
+				// correct. this accounts for the fact that for the pixels, the lower numbers are higher
+				// in the frame and vice versa, but for the plot values the lower numbers are lower in
+				// the window.
+				ymin_new = max(y,zoomDragStart.y).linlin(userView.bounds.height,0,zoomymin,zoomymax,nil);
+				ymax_new = min(y,zoomDragStart.y).linlin(userView.bounds.height,0,zoomymin,zoomymax,nil);
+
+				zoomxmin = xmin_new;
+				zoomxmax = xmax_new;
+				zoomymin = ymin_new;
+				zoomymax = ymax_new;
+
+				this.refresh;
+			});
+
+			reportMouseActivity.(this,x,y,modifiers,buttonNumber,clickCount);
+		};
+
+		this.background_(Color.white);
+
+		if (standalone) { parent.front };
 	}
 
 	asView { ^userView }

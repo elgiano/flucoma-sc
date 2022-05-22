@@ -85,33 +85,32 @@ FluidWaveformIndicesLayer : FluidViewer {
 			});
 			condition.wait { slices_fa.notNil };
 
-			userView.drawFunc = numChannels.switch(
-				1, {{
-					arg viewport;
-					var bounds = viewport.bounds;
-					Pen.width_(lineWidth);
-					slices_fa.do{
-						arg start_samp;
-						var x = start_samp.linlin(0,audioBuffer.numFrames,0,bounds.width);
-						Pen.line(Point(x,0),Point(x,bounds.height));
-						Pen.color_(color);
-						Pen.stroke;
-				}};
-				},
-				2, {{
-					arg viewport;
-					var bounds = viewport.bounds;
-					Pen.width_(lineWidth);
-					slices_fa.clump(2).do{
-						arg arr;
-						var start = arr[0].linlin(0,audioBuffer.numFrames,0,bounds.width);
-						var end = arr[1].linlin(0,audioBuffer.numFrames,0,bounds.width);
-						Pen.addRect(Rect(start,0,end-start,bounds.height));
-						Pen.color_(color.alpha_(0.25));
-						Pen.fill;
-				}};
-				}
-			);
+			userView.drawFunc = switch(numChannels)
+			{ 1 } {{
+				arg viewport;
+				var bounds = viewport.bounds;
+				Pen.width_(lineWidth);
+				slices_fa.do{
+					arg start_samp;
+					var x = start_samp.linlin(0,audioBuffer.numFrames,0,bounds.width);
+					Pen.line(Point(x,0),Point(x,bounds.height));
+					Pen.color_(color);
+					Pen.stroke;
+				};
+			}}
+			{ 2 } {{
+				arg viewport;
+				var bounds = viewport.bounds;
+				Pen.width_(lineWidth);
+				slices_fa.clump(2).do{
+					arg arr;
+					var start = arr[0].linlin(0,audioBuffer.numFrames,0,bounds.width);
+					var end = arr[1].linlin(0,audioBuffer.numFrames,0,bounds.width);
+					Pen.addRect(Rect(start,0,end-start,bounds.height));
+					Pen.color_(color.alpha_(0.25));
+					Pen.fill;
+				};
+			}}
 		}, AppClock);
 		^userView;
 	}
@@ -152,7 +151,7 @@ FluidWaveformFeaturesLayer : FluidViewer {
 
 			fa = fa.clump(featuresBuffer.numChannels).flop;
 
-			userView.drawFunc_({
+			userView.drawFunc = {
 				arg viewport;
 				var bounds = viewport.bounds;
 				var stacked_height;
@@ -190,7 +189,7 @@ FluidWaveformFeaturesLayer : FluidViewer {
 					Pen.color_(colors[channel_i % colors.size]);
 					Pen.stroke;
 				});
-			});
+			};
 		}, AppClock);
 
 		^userView;
@@ -386,13 +385,11 @@ FluidWaveform : FluidViewer {
 
 	front {
 		this.prMakeView;
-		fork({
-			this.refresh;
-			if (standalone) { parent.front };
-		}, AppClock);
+		this.refresh;
+		if (standalone) { parent.front };
 	}
 
-	// defer({}, nil) forks if not already running on the AppClock
+	// forkIfNeeded is used to get layers .draw to return synchronously
 	refresh {
 		forkIfNeeded({
 			var noView = if (view.isNil) { true } { view.isClosed };
@@ -407,7 +404,7 @@ FluidWaveform : FluidViewer {
 				view.layout.index = view.layout.index + 1;
 			};
 			view.refresh;
-		}, AppClock);
+		}, AppClock)
 	}
 
 	close {
@@ -425,10 +422,10 @@ FluidWaveform : FluidViewer {
 				view.background_(Color.white);
 			}
 		} {
-			view = View(parent, bounds);
+			view = View(parent, bounds)
 			view.background_(Color.white);
 		};
 	}
 
-    asView { ^view }
+	asView { ^view }
 }
